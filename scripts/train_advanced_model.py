@@ -40,6 +40,7 @@ from train_model import (
     build_preprocessor,
     get_class_weight,
     load_dataset,
+    to_dense_float32,
     tune_threshold,
 )
 
@@ -124,9 +125,9 @@ def train_member(
     seed: int,
     input_dim: int,
     X_train_processed: np.ndarray,
-    y_train: pd.Series,
+    y_train_array: np.ndarray,
     X_val_processed: np.ndarray,
-    y_val: pd.Series,
+    y_val_array: np.ndarray,
     args: argparse.Namespace,
     class_weight: dict[int, float] | None,
 ) -> tuple[tf.keras.Model, dict[str, Any]]:
@@ -150,23 +151,19 @@ def train_member(
         min_lr=1e-5,
     )
 
-    fit_kwargs: dict[str, Any] = {}
-    if class_weight is not None:
-        fit_kwargs["class_weight"] = class_weight
-
     history = model.fit(
         X_train_processed,
-        y_train,
+        y_train_array,
         epochs=args.epochs,
         batch_size=args.batch_size,
-        validation_data=(X_val_processed, y_val),
+        validation_data=(X_val_processed, y_val_array),
         callbacks=[early_stopping, reduce_lr],
+        class_weight=class_weight,
         verbose=args.verbose,
-        **fit_kwargs,
     )
 
     val_probabilities = model.predict(X_val_processed, verbose=0).ravel()
-    val_metrics = evaluate_predictions(y_val, val_probabilities, threshold=0.5)
+    val_metrics = evaluate_predictions(y_val_array, val_probabilities, threshold=0.5)
     member_info = {
         "member": member_index,
         "seed": seed,
@@ -200,9 +197,11 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     )
 
     preprocessor = build_preprocessor(numeric_features)
-    X_train_processed = preprocessor.fit_transform(X_train)
-    X_val_processed = preprocessor.transform(X_val)
-    X_test_processed = preprocessor.transform(X_test)
+    X_train_processed = to_dense_float32(preprocessor.fit_transform(X_train))
+    X_val_processed = to_dense_float32(preprocessor.transform(X_val))
+    X_test_processed = to_dense_float32(preprocessor.transform(X_test))
+    y_train_array = y_train.to_numpy(dtype=np.float32)
+    y_val_array = y_val.to_numpy(dtype=np.float32)
 
     class_weight = get_class_weight(y_train) if args.class_weight else None
     models: list[tf.keras.Model] = []
@@ -220,9 +219,9 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
             seed=member_seed,
             input_dim=X_train_processed.shape[1],
             X_train_processed=X_train_processed,
-            y_train=y_train,
+            y_train_array=y_train_array,
             X_val_processed=X_val_processed,
-            y_val=y_val,
+            y_val_array=y_val_array,
             args=args,
             class_weight=class_weight,
         )

@@ -4,6 +4,7 @@ import argparse
 import json
 import random
 from pathlib import Path
+from typing import Any
 
 import joblib
 import numpy as np
@@ -177,6 +178,12 @@ def build_preprocessor(numeric_features: list[str]) -> ColumnTransformer:
     )
 
 
+def to_dense_float32(values: Any) -> np.ndarray:
+    if hasattr(values, "toarray"):
+        values = values.toarray()
+    return np.asarray(values, dtype=np.float32)
+
+
 def build_model(input_dim: int, learning_rate: float) -> tf.keras.Model:
     model = tf.keras.Sequential(
         [
@@ -233,7 +240,7 @@ def get_class_weight(y_train: pd.Series) -> dict[int, float]:
     return {int(label): float(weight) for label, weight in zip(classes, weights)}
 
 
-def train(args: argparse.Namespace) -> dict[str, object]:
+def train(args: argparse.Namespace) -> dict[str, Any]:
     random.seed(args.seed)
     np.random.seed(args.seed)
     tf.random.set_seed(args.seed)
@@ -255,9 +262,12 @@ def train(args: argparse.Namespace) -> dict[str, object]:
     )
 
     preprocessor = build_preprocessor(numeric_features)
-    X_train_processed = preprocessor.fit_transform(X_train)
-    X_val_processed = preprocessor.transform(X_val)
-    X_test_processed = preprocessor.transform(X_test)
+    X_train_processed = to_dense_float32(preprocessor.fit_transform(X_train))
+    X_val_processed = to_dense_float32(preprocessor.transform(X_val))
+    X_test_processed = to_dense_float32(preprocessor.transform(X_test))
+    y_train_array = y_train.to_numpy(dtype=np.float32)
+    y_val_array = y_val.to_numpy(dtype=np.float32)
+    y_test_array = y_test.to_numpy(dtype=np.float32)
 
     model = build_model(input_dim=X_train_processed.shape[1], learning_rate=args.learning_rate)
     early_stopping = tf.keras.callbacks.EarlyStopping(
@@ -274,24 +284,21 @@ def train(args: argparse.Namespace) -> dict[str, object]:
         min_lr=1e-5,
     )
 
-    fit_kwargs: dict[str, object] = {}
     class_weight = get_class_weight(y_train) if args.class_weight else None
-    if class_weight is not None:
-        fit_kwargs["class_weight"] = class_weight
 
     history = model.fit(
         X_train_processed,
-        y_train,
+        y_train_array,
         epochs=args.epochs,
         batch_size=args.batch_size,
-        validation_data=(X_val_processed, y_val),
+        validation_data=(X_val_processed, y_val_array),
         callbacks=[early_stopping, reduce_lr],
+        class_weight=class_weight,
         verbose=1,
-        **fit_kwargs,
     )
 
-    evaluation_values = model.evaluate(X_test_processed, y_test, verbose=0)
-    test_loss = float(evaluation_values[0])
+    evaluation_result = model.evaluate(X_test_processed, y_test_array, verbose=0)
+    test_loss = float(evaluation_result[0] if isinstance(evaluation_result, list) else evaluation_result)
     val_probabilities = model.predict(X_val_processed, verbose=0).ravel()
     probabilities = model.predict(X_test_processed, verbose=0).ravel()
     tuned_threshold_metrics = tune_threshold(y_val, val_probabilities)
