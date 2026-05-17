@@ -1,0 +1,12 @@
+{
+  "name": "Predict Students' Dropout and Academic Success",
+  "repository": "UCI Machine Learning Repository",
+  "dataset_id": 697,
+  "official_page": "https://archive.ics.uci.edu/dataset/697/predict+students+dropout+and+academic+success",
+  "download_url": "https://cdn.uci-ics-mlr-prod.aws.uci.edu/697/predict%2Bstudents%2Bdropout%2Band%2Bacademic%2Bsuccess.zip",
+  "doi": "10.24432/C5MC89",
+  "license": "CC BY 4.0",
+  "instances": 4424,
+  "features": 36,
+  "task": "classification"
+}

@@ -1,0 +1,24 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: edurisk-n8n
+    restart: unless-stopped
+    ports:
+      - "8081:5678"
+    environment:
+      - TZ=Asia/Seoul
+      - GENERIC_TIMEZONE=Asia/Seoul
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_EDITOR_BASE_URL=http://localhost:8081
+      - WEBHOOK_URL=http://localhost:8081/
+      - N8N_SECURE_COOKIE=false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./import:/files/import:ro
+
+volumes:
+  n8n_data:

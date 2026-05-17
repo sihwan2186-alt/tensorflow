@@ -1,0 +1,358 @@
+{
+  "name": "EduRisk AI - Student Dropout Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "edurisk-predict",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -820,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "gender",
+              "name": "gender",
+              "type": "string",
+              "value": "={{$json.body.gender || $json.gender}}"
+            },
+            {
+              "id": "age",
+              "name": "age",
+              "type": "number",
+              "value": "={{$json.body.age || $json.age}}"
+            },
+            {
+              "id": "course_type",
+              "name": "course_type",
+              "type": "string",
+              "value": "={{$json.body.course_type || $json.course_type}}"
+            },
+            {
+              "id": "attendance_rate",
+              "name": "attendance_rate",
+              "type": "number",
+              "value": "={{$json.body.attendance_rate || $json.attendance_rate}}"
+            },
+            {
+              "id": "assignment_submit_rate",
+              "name": "assignment_submit_rate",
+              "type": "number",
+              "value": "={{$json.body.assignment_submit_rate || $json.assignment_submit_rate}}"
+            },
+            {
+              "id": "quiz_average",
+              "name": "quiz_average",
+              "type": "number",
+              "value": "={{$json.body.quiz_average || $json.quiz_average}}"
+            },
+            {
+              "id": "login_count",
+              "name": "login_count",
+              "type": "number",
+              "value": "={{$json.body.login_count || $json.login_count}}"
+            },
+            {
+              "id": "video_watch_time",
+              "name": "video_watch_time",
+              "type": "number",
+              "value": "={{$json.body.video_watch_time || $json.video_watch_time}}"
+            },
+            {
+              "id": "forum_activity",
+              "name": "forum_activity",
+              "type": "number",
+              "value": "={{$json.body.forum_activity || $json.forum_activity}}"
+            },
+            {
+              "id": "previous_grade",
+              "name": "previous_grade",
+              "type": "string",
+              "value": "={{$json.body.previous_grade || $json.previous_grade}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-student-data",
+      "name": "Set Student Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -560,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/predict",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify($json.body || $json)}}",
+        "options": {}
+      },
+      "id": "http-request-fastapi",
+      "name": "HTTP Request - FastAPI Predict",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -300,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "risk-label",
+              "leftValue": "={{$json.label}}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-risk-high",
+      "name": "IF - Risk Label",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -40,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=학생 중도 포기 위험 예측 결과를 교수자에게 보낼 알림 문장으로 요약해줘. 예측 결과: {{$json.prediction}}, 위험 등급: {{$json.risk_level_label}}({{$json.risk_level}}), 위험도: {{$json.dropout_probability_percent}}%, 설명 점수: {{$json.risk_score}}점, 상위 위험 요인: {{$json.top_risk_factors.map(f => f.label + ' +' + f.contribution).join(', ')}}, 권장 조치: {{$json.recommended_actions.join(', ')}}"
+      },
+      "id": "ai-agent-summary",
+      "name": "AI Agent - Alert Summary",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        220,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channel": "#student-alerts",
+        "text": "=[학생 중도 포기 위험 알림]\n\n위험 등급: {{$json.risk_level_label}} / {{$json.risk_level}}\n중도 포기 위험도: {{$json.dropout_probability_percent}}%\n설명 점수: {{$json.risk_score}}점\n판단 결과: {{$json.prediction}}\n상위 위험 요인: {{$json.top_risk_factors.map(f => f.label + ' +' + f.contribution).join(', ')}}\n권장 조치: {{$json.recommended_actions.join(', ')}}\n자동화 정책: {{$json.notification_policy}}\n\nAI 요약: {{$json.output || $json.text || 'AI Agent 출력 필드를 확인하세요.'}}"
+      },
+      "id": "slack-alert",
+      "name": "Slack Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        500,
+        40
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "teacher@example.com",
+        "subject": "=[EduRisk AI] {{$json.risk_level_label}} 학생 알림",
+        "message": "=[학생 중도 포기 위험 알림]\n\n위험 등급: {{$json.risk_level_label}} / {{$json.risk_level}}\n중도 포기 위험도: {{$json.dropout_probability_percent}}%\n설명 점수: {{$json.risk_score}}점\n판단 결과: {{$json.prediction}}\n상위 위험 요인: {{$json.top_risk_factors.map(f => f.label + ' +' + f.contribution).join(', ')}}\n권장 조치: {{$json.recommended_actions.join(', ')}}\n담당: {{$json.intervention_plan.owner}}\n기한: {{$json.intervention_plan.due}}",
+        "options": {}
+      },
+      "id": "gmail-alert",
+      "name": "Gmail Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        220
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "REPLACE_WITH_SHEET_ID",
+        "sheetName": "EduRiskAI",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "prediction": "={{$json.prediction}}",
+            "risk_level": "={{$json.risk_level}}",
+            "risk_level_label": "={{$json.risk_level_label}}",
+            "dropout_probability": "={{$json.dropout_probability}}",
+            "dropout_probability_percent": "={{$json.dropout_probability_percent}}",
+            "risk_score": "={{$json.risk_score}}",
+            "top_risk_factors": "={{$json.top_risk_factors.map(f => f.label + ' +' + f.contribution).join(', ')}}",
+            "recommended_actions": "={{$json.recommended_actions.join(', ')}}",
+            "intervention_owner": "={{$json.intervention_plan.owner}}",
+            "intervention_due": "={{$json.intervention_plan.due}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "google-sheets-log",
+      "name": "Google Sheets Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        760,
+        160
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "respond-to-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1020,
+        160
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - FastAPI Predict",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - FastAPI Predict": {
+      "main": [
+        [
+          {
+            "node": "IF - Risk Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Risk Label": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Alert Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gmail Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google Sheets Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Alert Summary": {
+      "main": [
+        [
+          {
+            "node": "Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Alert": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Alert": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets Log": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2026-05-16T00:00:00.000Z",
+  "versionId": "edurisk-ai-template"
+}

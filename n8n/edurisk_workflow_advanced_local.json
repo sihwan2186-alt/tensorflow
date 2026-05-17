@@ -1,0 +1,365 @@
+{
+  "name": "EduRisk AI - Advanced Local Routing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "edurisk-advanced-local",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -900,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "student_id",
+              "name": "student_id",
+              "type": "string",
+              "value": "={{$json.body.student_id || $json.student_id || ''}}"
+            },
+            {
+              "id": "gender",
+              "name": "gender",
+              "type": "string",
+              "value": "={{$json.body.gender || $json.gender}}"
+            },
+            {
+              "id": "age",
+              "name": "age",
+              "type": "number",
+              "value": "={{$json.body.age || $json.age}}"
+            },
+            {
+              "id": "course_type",
+              "name": "course_type",
+              "type": "string",
+              "value": "={{$json.body.course_type || $json.course_type}}"
+            },
+            {
+              "id": "attendance_rate",
+              "name": "attendance_rate",
+              "type": "number",
+              "value": "={{$json.body.attendance_rate || $json.attendance_rate}}"
+            },
+            {
+              "id": "assignment_submit_rate",
+              "name": "assignment_submit_rate",
+              "type": "number",
+              "value": "={{$json.body.assignment_submit_rate || $json.assignment_submit_rate}}"
+            },
+            {
+              "id": "quiz_average",
+              "name": "quiz_average",
+              "type": "number",
+              "value": "={{$json.body.quiz_average || $json.quiz_average}}"
+            },
+            {
+              "id": "login_count",
+              "name": "login_count",
+              "type": "number",
+              "value": "={{$json.body.login_count || $json.login_count}}"
+            },
+            {
+              "id": "video_watch_time",
+              "name": "video_watch_time",
+              "type": "number",
+              "value": "={{$json.body.video_watch_time || $json.video_watch_time}}"
+            },
+            {
+              "id": "forum_activity",
+              "name": "forum_activity",
+              "type": "number",
+              "value": "={{$json.body.forum_activity || $json.forum_activity}}"
+            },
+            {
+              "id": "previous_grade",
+              "name": "previous_grade",
+              "type": "string",
+              "value": "={{$json.body.previous_grade || $json.previous_grade}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-student-data",
+      "name": "Set Student Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -640,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/predict",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify($json.body || $json)}}",
+        "options": {}
+      },
+      "id": "http-request-fastapi",
+      "name": "HTTP Request - FastAPI Predict",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "critical-threshold",
+              "leftValue": "={{$json.dropout_probability}}",
+              "rightValue": 0.9,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-critical",
+      "name": "IF - Critical >= 90%",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -120,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "high-label",
+              "leftValue": "={{$json.label}}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-high",
+      "name": "IF - High Label",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        140,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "medium-threshold",
+              "leftValue": "={{$json.dropout_probability}}",
+              "rightValue": 0.4,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-medium",
+      "name": "IF - Medium >= 40%",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{Object.assign({}, $json, { automation_route: 'Critical: Slack + Gmail immediate alert', automation_message: '긴급 위험 학생입니다. 당일 상담과 미제출 과제 확인이 필요합니다.' })}}",
+        "options": {}
+      },
+      "id": "respond-critical",
+      "name": "Respond - Critical",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{Object.assign({}, $json, { automation_route: 'High: Gmail + Google Sheets', automation_message: '높은 위험 학생입니다. 3일 이내 개별 상담을 권장합니다.' })}}",
+        "options": {}
+      },
+      "id": "respond-high",
+      "name": "Respond - High",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{Object.assign({}, $json, { automation_route: 'Medium: Google Sheets monitoring', automation_message: '관찰 필요 학생입니다. 주간 학습 활동 추이를 기록합니다.' })}}",
+        "options": {}
+      },
+      "id": "respond-medium",
+      "name": "Respond - Medium",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{Object.assign({}, $json, { automation_route: 'Low: routine monitoring', automation_message: '낮은 위험 학생입니다. 정기 모니터링만 유지합니다.' })}}",
+        "options": {}
+      },
+      "id": "respond-low",
+      "name": "Respond - Low",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        700,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - FastAPI Predict",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - FastAPI Predict": {
+      "main": [
+        [
+          {
+            "node": "IF - Critical >= 90%",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Critical >= 90%": {
+      "main": [
+        [
+          {
+            "node": "Respond - Critical",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF - High Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - High Label": {
+      "main": [
+        [
+          {
+            "node": "Respond - High",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF - Medium >= 40%",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Medium >= 40%": {
+      "main": [
+        [
+          {
+            "node": "Respond - Medium",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - Low",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2026-05-17T00:00:00.000Z",
+  "versionId": "edurisk-ai-advanced-local"
+}

@@ -1,0 +1,14 @@
+__pycache__/
+.venv/
+.env
+*.pyc
+.ipynb_checkpoints/
+
+# Generated model artifacts
+model/*.keras
+model/*.joblib
+model/metadata.json
+
+# Local outputs
+outputs/
+*.log
